@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ARROW SORT - FINAL</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  :root { --bg: #1C1C1E; --panel: #2C2C2E; --text: #E8E8E8; --accent: #5B9BD5; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; height: 100vh; overflow: hidden; display: flex; justify-content: center; }
+  #app { width: 100%; max-width: 500px; height: 100%; display: flex; flex-direction: column; padding: 15px; gap: 10px; }
+  #top-bar { display: flex; justify-content: space-between; align-items: center; }
+  .hearts { display: flex; gap: 5px; font-size: 18px; }
+  .heart { opacity: 1; transition: 0.3s; }
+  .heart.off { opacity: 0.1; filter: grayscale(1); }
+  #modes { display: flex; gap: 8px; }
+  .btn-m { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #3A3A3C; background: var(--panel); color: #888; cursor: pointer; font-size: 13px; font-weight: bold; }
+  .btn-m.active { background: var(--accent); color: white; border-color: transparent; }
+  #sub-ctrl { min-height: 40px; display: flex; align-items: center; overflow-x: auto; gap: 8px; scrollbar-width: none; }
+  .btn-s { padding: 6px 12px; border-radius: 8px; border: 1px solid #3A3A3C; background: var(--panel); color: #888; white-space: nowrap; font-size: 11px; cursor: pointer; }
+  .btn-s.active { border-color: var(--accent); color: var(--accent); }
+  #board-container { flex: 1; display: flex; justify-content: center; align-items: center; }
+  canvas { background: #252527; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); cursor: pointer; }
+  #actions { display: flex; gap: 8px; }
+  .btn-a { flex: 1; padding: 14px; border-radius: 14px; border: none; background: var(--panel); color: white; font-weight: bold; cursor: pointer; }
+  #msg { text-align: center; height: 1.2em; font-size: 13px; color: #A0A8B8; }
+  #banner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 300px; background: #222; border: 2px solid #4FAD62; border-radius: 20px; padding: 25px; text-align: center; z-index: 100; }
+  .next-stg { background: #4FAD62; color: white; border: none; padding: 12px; width: 100%; border-radius: 10px; margin-top: 15px; font-weight: bold; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top-bar">
+    <h1 style="font-size:18px; letter-spacing:1px;">ARROW SORT</h1>
+    <div class="hearts"><span id="h1" class="heart">❤️</span><span id="h2" class="heart">❤️</span><span id="h3" class="heart">❤️</span></div>
+  </div>
+  <div id="modes">
+    <button id="m-story" class="btn-m active" onclick="changeMode('story')">STORY</button>
+    <button id="m-free" class="btn-m" onclick="changeMode('free')">FREE</button>
+  </div>
+  <div id="sub-ctrl"></div>
+  <div id="board-container"><canvas id="cv"></canvas></div>
+  <div id="msg"></div>
+  <div id="actions">
+    <button class="btn-a" onclick="resetGame()">RESET</button>
+    <button id="hint-btn" class="btn-a" style="color:#FFD966" onclick="giveHint()">HINT</button>
+    <button class="btn-a" onclick="skipOrNext()">NEXT</button>
+  </div>
+  <div id="banner">
+    <h2 style="color:#4FAD62">CLEARED!</h2>
+    <p id="b-info" style="margin:10px 0; font-size:14px;"></p>
+    <button class="next-stg" onclick="skipOrNext()">NEXT STAGE</button>
+  </div>
+</div>
+
+<script>
+const COLORS=['#5B9BD5','#4FAD62','#E066A0','#F5D547','#9B59B6','#F4A24A','#2A9D8F','#D85A30','#E86B8A','#8FBC5A'];
+const STORY_DATA=[
+  {s:5, p:[{r:0,c:0,d:'R',l:2},{r:0,c:3,d:'D',l:3},{r:2,c:0,d:'D',l:3}]},
+  {s:6, p:[{r:0,c:0,d:'D',l:3},{r:0,c:2,d:'R',l:3},{r:1,c:5,d:'D',l:2},{r:3,c:1,d:'R',l:2},{r:5,c:0,d:'R',l:4}]},
+  {s:6, p:[{r:2,c:0,d:'R',l:2},{r:0,c:3,d:'D',l:2},{r:4,c:4,d:'U',l:2},{r:1,c:1,d:'D',l:3}]},
+  {s:7, p:[{r:0,c:0,d:'R',l:3},{r:0,c:4,d:'D',l:3},{r:1,c:0,d:'D',l:3},{r:2,c:2,d:'R',l:2},{r:3,c:5,d:'D',l:2}]},
+  {s:7, p:[{r:0,c:0,d:'R',l:4},{r:0,c:5,d:'D',l:3},{r:1,c:2,d:'D',l:2},{r:2,c:0,d:'D',l:3},{r:3,c:3,d:'R',l:2}]},
+  {s:8, p:[{r:0,c:0,d:'R',l:3},{r:0,c:4,d:'D',l:3},{r:1,c:1,d:'D',l:3},{r:2,c:5,d:'R',l:2},{r:3,c:0,d:'R',l:2}]},
+  {s:8, p:[{r:0,c:2,d:'D',l:3},{r:0,c:4,d:'R',l:3},{r:1,c:0,d:'R',l:2},{r:2,c:5,d:'D',l:3},{r:3,c:1,d:'R',l:3}]},
+  {s:8, p:[{r:0,c:0,d:'R',l:5},{r:0,c:6,d:'D',l:3},{r:1,c:1,d:'D',l:4},{r:2,c:3,d:'R',l:2},{r:4,c:5,d:'D',l:2}]},
+  {s:8, p:[{r:0,c:1,d:'D',l:3},{r:0,c:3,d:'R',l:4},{r:2,c:0,d:'R',l:2},{r:3,c:5,d:'D',l:3},{r:4,c:2,d:'R',l:2}]},
+  {s:8, p:[{r:0,c:0,d:'D',l:4},{r:0,c:2,d:'R',l:5},{r:2,c:1,d:'D',l:3},{r:3,c:3,d:'R',l:4},{r:5,c:0,d:'R',l:2}]}
+];
+
+let mode='story', curIdx=0, curDiff=1, size=6;
+let pieces=[], history=[], lives=3, moves=0, clearedArr=new Array(10).fill(false), hintIdx=-1;
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let cellS=0, margin=5, gap=2;
+
+function getCells(p){
+  let res=[];
+  for(let i=0;i<p.l;i++){
+    let r=p.r, c=p.c;
+    if(p.d==='R')c+=i; else if(p.d==='L')c-=i; else if(p.d==='D')r+=i; else if(p.d==='U')r-=i;
+    res.push({r,c});
+  }
+  return res;
+}
+
+function checkExit(idx, currentPieces){
+  const p=currentPieces[idx], others=currentPieces.filter((_,i)=>i!==idx).flatMap(getCells);
+  const cells=getCells(p), head=cells[cells.length-1];
+  let dr=0, dc=0;
+  if(p.d==='R')dc=1; else if(p.d==='L')dc=-1; else if(p.d==='D')dr=1; else dr=-1;
+  let cr=head.r+dr, cc=head.c+dc;
+  while(cr>=0 && cr<size && cc>=0 && cc<size){
+    if(others.some(oc=>oc.r===cr && oc.c===cc)) return false;
+    cr+=dr; cc+=dc;
+  }
+  return true;
+}
+
+// ソルバー：この盤面がクリア可能かチェック
+function isSolvable(targetPieces){
+  let temp=[...targetPieces];
+  while(temp.length>0){
+    let movableIdx=temp.findIndex((_,i)=>checkExit(i, temp));
+    if(movableIdx===-1) return false;
+    temp.splice(movableIdx, 1);
+  }
+  return true;
+}
+
+function generateFree(){
+  const diffs=[{s:5,t:4},{s:6,t:8},{s:7,t:14},{s:8,t:22}];
+  const d=diffs[curDiff]; size=d.s;
+  const dirs=['R','L','D','U'];
+  
+  for(let attempt=0; attempt<200; attempt++){
+    let tempPieces=[];
+    for(let i=0; i<100 && tempPieces.length<d.t; i++){
+      let p={r:Math.floor(Math.random()*size), c:Math.floor(Math.random()*size), d:dirs[Math.floor(Math.random()*4)], l:2+Math.floor(Math.random()*2)};
+      let cells=getCells(p);
+      let ok=cells.every(c=>c.r>=0 && c.r<size && c.c>=0 && c.c<size) && 
+             !cells.some(c=>tempPieces.flatMap(getCells).some(oc=>oc.r===c.r && oc.c===c.c));
+      if(ok){ p.color=COLORS[tempPieces.length%COLORS.length]; tempPieces.push(p); }
+    }
+    if(tempPieces.length >= d.t/2 && isSolvable(tempPieces)){
+      pieces=tempPieces; history=JSON.parse(JSON.stringify(pieces));
+      return;
+    }
+  }
+  // 失敗時は再試行
+  generateFree();
+}
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle="#2C2C2E";
+  for(let r=0;r<size;r++)for(let c=0;c<size;c++){
+    drawRect(c*(cellS+gap), r*(cellS+gap), cellS, cellS, 4); ctx.fill();
+  }
+  pieces.forEach((p,i)=>{
+    const cells=getCells(p);
+    const rs=cells.map(c=>c.r), cs=cells.map(c=>c.c);
+    const minR=Math.min(...rs), maxR=Math.max(...rs), minC=Math.min(...cs), maxC=Math.max(...cs);
+    const x=minC*(cellS+gap)+margin, y=minR*(cellS+gap)+margin;
+    const w=(maxC-minC+1)*cellS+(maxC-minC)*gap-margin*2, h=(maxR-minR+1)*cellS+(maxR-minR)*gap-margin*2;
+    ctx.fillStyle=p.color; drawRect(x,y,w,h,8); ctx.fill();
+    if(checkExit(i, pieces)){ ctx.strokeStyle="white"; ctx.lineWidth=2; ctx.stroke(); }
+    if(i===hintIdx){ ctx.strokeStyle="#FFD966"; ctx.lineWidth=4; ctx.stroke(); }
+    ctx.save(); ctx.translate(x+w/2, y+h/2);
+    ctx.rotate({U:0, D:Math.PI, L:-Math.PI/2, R:Math.PI/2}[p.d]);
+    ctx.strokeStyle="rgba(0,0,0,0.3)"; ctx.lineWidth=3; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(0,10); ctx.lineTo(0,-10); ctx.moveTo(-6,-2); ctx.lineTo(0,-10); ctx.lineTo(6,-2); ctx.stroke();
+    ctx.restore();
+  });
+}
+
+function drawRect(x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+function handleInput(ex,ey){
+  const rect=cv.getBoundingClientRect();
+  const x=(ex-rect.left)*(cv.width/rect.width), y=(ey-rect.top)*(cv.height/rect.height);
+  const col=Math.floor(x/(cellS+gap)), row=Math.floor(y/(cellS+gap));
+  // クリック優先度：逆順（描画が上のもの）から探す[cite: 4]
+  let idx=-1;
+  for(let i=pieces.length-1; i>=0; i--){
+    if(getCells(pieces[i]).some(c=>c.r===row && c.c===col)){ idx=i; break; }
+  }
+  if(idx===-1) return;
+  if(checkExit(idx, pieces)){
+    pieces.splice(idx,1); moves++; hintIdx=-1; draw();
+    if(pieces.length===0) showWin();
+  } else {
+    lives--; updateHearts(); showMsg("ブロックされています！");
+    if(lives<=0){ showMsg("GAME OVER"); setTimeout(resetGame, 800); }
+  }
+}
+
+cv.onmousedown=e=>handleInput(e.clientX, e.clientY);
+cv.ontouchstart=e=>{ e.preventDefault(); handleInput(e.touches[0].clientX, e.touches[0].clientY); };
+
+function changeMode(m){
+  mode=m;
+  document.getElementById('m-story').className=m==='story'?'btn-m active':'btn-m';
+  document.getElementById('m-free').className=m==='free'?'btn-m active':'btn-m';
+  m==='story'?loadStory(curIdx):loadFree();
+}
+function loadStory(idx){
+  curIdx=idx; const d=STORY_DATA[idx]; size=d.s;
+  pieces=d.p.map((p,i)=>({...p, color:COLORS[i%COLORS.length]}));
+  history=JSON.parse(JSON.stringify(pieces)); initUI();
+}
+function loadFree(){ generateFree(); initUI(); }
+function initUI(){
+  lives=3; moves=0; hintIdx=-1;
+  document.getElementById('banner').style.display='none';
+  const ctrl=document.getElementById('sub-ctrl');
+  if(mode==='story'){
+    ctrl.innerHTML=STORY_DATA.map((_,i)=>`<button class="btn-s ${i===curIdx?'active':''} ${clearedArr[i]?'cleared':''}" onclick="loadStory(${i})">Lv.${i+1}</button>`).join('');
+  } else {
+    ctrl.innerHTML=['初級','中級','上級','極限'].map((l,i)=>`<button class="btn-s ${i===curDiff?'active':''}" onclick="setDiff(${i})">${l}</button>`).join('');
+  }
+  updateHearts(); resize();
+}
+function setDiff(d){ curDiff=d; loadFree(); }
+function resetGame(){ pieces=JSON.parse(JSON.stringify(history)); initUI(); }
+function resize(){
+  const container=document.getElementById('board-container');
+  const s=Math.min(container.clientWidth, container.clientHeight, 450);
+  cv.width=cv.height=s; cellS=(s-(size*gap))/size; draw();
+}
+function updateHearts(){ for(let i=1;i<=3;i++)document.getElementById('h'+i).className=i<=lives?'heart':'heart off'; }
+function showMsg(t){ const m=document.getElementById('msg'); m.textContent=t; setTimeout(()=>m.textContent='', 2000); }
+function showWin(){ if(mode==='story')clearedArr[curIdx]=true; document.getElementById('b-info').textContent=`${moves}手でクリア！`; document.getElementById('banner').style.display='block'; }
+function skipOrNext(){ if(mode==='story'){ if(curIdx<9)loadStory(curIdx+1); else changeMode('free'); } else loadFree(); }
+function giveHint(){
+  const ok=pieces.map((_,i)=>checkExit(i,pieces)?i:-1).filter(i=>i!==-1);
+  if(ok.length){ hintIdx=ok[Math.floor(Math.random()*ok.length)]; draw(); setTimeout(()=>{hintIdx=-1;draw();},1000); }
+}
+window.onresize=resize;
+window.onload=()=>changeMode('story');
+</script>
+</body>
+</html>
